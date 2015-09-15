@@ -8,10 +8,18 @@
  */
 package com.darktalker.cordova.screenshot;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Bitmap.CompressFormat;
+import android.graphics.Canvas;
+import android.net.Uri;
+import android.os.Environment;
+import android.util.Base64;
+import android.util.Log;
+import android.view.SurfaceView;
+import android.view.TextureView;
+import android.view.View;
+import android.view.ViewGroup;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
@@ -20,38 +28,39 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.Bitmap.CompressFormat;
-import android.net.Uri;
-import android.os.Environment;
-import android.util.Base64;
-import android.view.TextureView;
-import android.view.View;
-import android.view.ViewGroup;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
 
 public class Screenshot extends CordovaPlugin {
 	
-	private TextureView findXWalkTextureView(ViewGroup group) {
+	private Bitmap getXwalkBitmap(ViewGroup group) {
 
 		int childCount = group.getChildCount();
 		for(int i=0;i<childCount;i++) {
 			View child = group.getChildAt(i);
-			if(child instanceof TextureView) {
-				String parentClassName = child.getParent().getClass().toString();
-				boolean isRightKindOfParent = (parentClassName.contains("XWalk"));
-				if(isRightKindOfParent) {
-					return (TextureView) child;
+			String parentClassName = child.getParent().getClass().toString();
+			if(parentClassName.contains("XWalk") && child instanceof SurfaceView) {
+				SurfaceView surfaceView = ((SurfaceView) child);
+				Bitmap bitmap = Bitmap.createBitmap(surfaceView.getWidth(), surfaceView.getHeight(), Bitmap.Config.ARGB_8888);
+				Canvas c = new Canvas(bitmap);
+				surfaceView.draw(c);
+				return bitmap;
+			} else if(parentClassName.contains("XWalk") && child instanceof TextureView) {
+				Bitmap bitmap = ((TextureView)child).getBitmap();
+				if(bitmap != null) {
+					return bitmap;
 				}
 			} else if(child instanceof ViewGroup) {
-				TextureView textureView = findXWalkTextureView((ViewGroup) child);
-				if(textureView != null) {
-					return textureView;
+				Bitmap bitmap = getXwalkBitmap((ViewGroup) child);
+				if(bitmap != null) {
+					return bitmap;
 				}
 			}
 		}
-		
+
 		return null;
 	}
 	
@@ -67,17 +76,15 @@ public class Screenshot extends CordovaPlugin {
 		
 		if(isCrosswalk) {
 			try {
-				
-				TextureView textureView = findXWalkTextureView((ViewGroup)webView.getView());
-                                if (textureView != null) {
-				    bitmap = textureView.getBitmap();
-                                    return bitmap;
-                                }
+				bitmap = getXwalkBitmap((ViewGroup) webView.getView());
+				if (bitmap != null) {
+                    return bitmap;
+                }
 			} catch(Exception e) {
 			}
 		} 
 
-	        View view = webView.getView().getRootView();
+	    View view = webView.getView().getRootView();
 		view.setDrawingCacheEnabled(true);
 		bitmap = Bitmap.createBitmap(view.getDrawingCache());
 		view.setDrawingCacheEnabled(false);
